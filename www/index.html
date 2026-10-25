@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f1e36">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<title>Bookingwep</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--blue:#0f1e36;--blue2:#1b3156;--gold:#c5a059;--gold2:#e4c58a;--sand:#f4ecdf;--ink:#172033}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:Cairo,sans-serif;background:var(--sand);color:var(--ink);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top)}
+header{background:var(--blue);color:var(--gold);padding:12px 16px;font-weight:900;font-size:18px;border-bottom:2px solid var(--gold)}
+main{flex:1;overflow-y:auto;padding:12px}
+.tab{display:none}.tab.on{display:block}
+nav{display:flex;background:var(--blue);border-top:2px solid var(--gold);padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;background:none;border:0;color:var(--gold2);font:700 12px Cairo;padding:10px 0;opacity:.7}
+nav button.on{opacity:1;color:#fff;box-shadow:inset 0 3px var(--gold)}
+nav button span{display:block;font-size:20px}
+.card{background:#fff;border:1px solid rgba(197,160,89,.3);border-radius:12px;padding:12px;margin-bottom:8px}
+.t{font-weight:800;font-size:14px;line-height:1.7}.m{font-size:11px;color:#9a7840;font-weight:700}
+.g{background:var(--blue);color:#fff;border-right:4px solid var(--gold);border-radius:9px;padding:8px 12px;font-weight:900;font-size:14px;margin:12px 0 8px}
+.mt{display:grid;grid-template-columns:64px 1fr auto;gap:10px;align-items:center}
+.mt b{font-size:16px;text-align:center}.st{background:var(--blue);color:#fff;border-radius:8px;padding:4px 8px;font-size:11px;font-weight:800}
+.msg{text-align:center;color:#667085;padding:40px 10px;font-weight:700}
+.big{font-size:56px;font-weight:900;direction:ltr;text-align:center;color:var(--blue)}
+.row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}.row b{display:block}.row small{color:#7b8492}
+.p{display:flex;justify-content:space-between;font-weight:700}.p.nx{background:rgba(197,160,89,.2);border-color:var(--gold)}
+.f{display:flex;gap:6px;overflow-x:auto;margin-bottom:10px}
+.f button{flex:0 0 auto;border:1px solid var(--gold);background:#fff;border-radius:16px;padding:4px 12px;font:700 12px Cairo}
+.f button.on{background:var(--gold);color:var(--blue)}
+.s{display:flex;align-items:center;gap:10px;width:100%;text-align:right;font:700 14px Cairo;color:var(--ink)}
+.s.on{border-color:#c0303a;background:#fff5f5}.s i{margin-inline-start:auto;font-style:normal;color:var(--gold)}
+#bar{background:var(--blue);color:#ff303b;text-align:center;font:900 14px 'Courier New',monospace;padding:6px;display:none}
+</style>
+</head>
+<body>
+<header id="ttl">الأخبار</header>
+<div id="bar"></div>
+<main>
+ <section class="tab on" id="news"><div class="msg">جاري تحميل الأخبار...</div></section>
+ <section class="tab" id="matches"><div class="msg">جاري تحميل المباريات...</div></section>
+ <section class="tab" id="weather"><div class="msg">جاري تحميل الطقس...</div></section>
+ <section class="tab" id="radio"></section>
+ <section class="tab" id="prayer"><div class="msg">جاري تحميل المواقيت...</div></section>
+</main>
+<nav id="nav">
+ <button data-t="news" class="on"><span>📰</span>أخبار</button>
+ <button data-t="matches"><span>⚽</span>مباريات</button>
+ <button data-t="weather"><span>⛅</span>طقس</button>
+ <button data-t="radio"><span>📻</span>راديو</button>
+ <button data-t="prayer"><span>🕌</span>صلاة</button>
+</nav>
+<script>
+/* ضع هنا رابط Web App الجديد (المنتهي بـ /exec) */
+const API="https://script.google.com/macros/s/AKfycbxdTMPGXph3hSywLu9SHqXvqKfbBatqZN3ynkRZsd0maqlbtBYxgGIWImX1sUesSbjcZg/exec";
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const titles={news:"آخر الأخبار",matches:"مباريات اليوم",weather:"الطقس",radio:"الراديو",prayer:"مواقيت الصلاة"};
+const loaded={};
+
+$("nav").onclick=e=>{
+  const b=e.target.closest("button");if(!b)return;
+  const t=b.dataset.t;
+  document.querySelectorAll(".tab,nav button").forEach(x=>x.classList.remove("on"));
+  $(t).classList.add("on");b.classList.add("on");$("ttl").textContent=titles[t];
+  if(!loaded[t]){loaded[t]=1;({news:loadNews,matches:loadMatches,weather:loadWeather,radio:openRadio,prayer:loadPrayer})[t]()}
+};
+
+async function api(action){
+  const r=await fetch(API+"?action="+action);
+  const j=await r.json();
+  if(!j.success)throw new Error(j.message);
+  return j.data;
+}
+const fail=(id,t)=>$(id).innerHTML='<div class="msg">'+t+'<br>تأكد من الاتصال وحاول لاحقاً.</div>';
+
+/* ---------- أخبار ---------- */
+function ago(v){
+  const m=Math.max(0,Math.floor((Date.now()-new Date(v))/6e4));
+  if(isNaN(m))return"";
+  if(m<1)return"الآن";if(m<60)return"منذ "+m+" دقيقة";
+  const h=Math.floor(m/60);return h<24?"منذ "+h+" ساعة":"منذ "+Math.floor(h/24)+" يوم";
+}
+async function loadNews(){
+  try{
+    const d=await api("news");
+    $("news").innerHTML=d.length?d.map(n=>{
+      const inner='<div class="m">'+esc(ago(n.createdAt))+'</div><div class="t">'+esc(n.title)+'</div><div class="m">'+esc(n.source)+'</div>';
+      return /^https?:/.test(n.url)?'<a class="card" style="display:block;color:inherit;text-decoration:none" target="_blank" rel="noopener" href="'+esc(n.url)+'">'+inner+'</a>':'<div class="card">'+inner+'</div>';
+    }).join(""):'<div class="msg">لا توجد أخبار حالياً.</div>';
+  }catch(e){fail("news","تعذر تحميل الأخبار.")}
+}
+
+/* ---------- مباريات ---------- */
+async function loadMatches(){
+  try{
+    const d=await api("matches"),g={};
+    d.forEach(m=>(g[m.competition||"بطولة أخرى"]??=[]).push(m));
+    $("matches").innerHTML=Object.keys(g).length?Object.entries(g).map(([c,l])=>
+      '<div class="g">🏆 '+esc(c)+'</div>'+l.map(m=>
+        '<div class="card mt"><b>'+esc(m.time)+'</b><div class="t">'+esc(m.home)+'<br>'+esc(m.away)+'</div><span class="st">'+esc(m.status)+'</span></div>'
+      ).join("")).join(""):'<div class="msg">لا توجد مباريات حالياً.</div>';
+  }catch(e){fail("matches","تعذر تحميل المباريات.")}
+}
+
+/* ---------- موقع ---------- */
+const GIZA={lat:30.0483,lon:31.1946,name:"الجيزة"};
+function pos(){
+  return new Promise(res=>{
+    if(!navigator.geolocation)return res(GIZA);
+    navigator.geolocation.getCurrentPosition(
+      p=>res({lat:p.coords.latitude,lon:p.coords.longitude,name:"موقعك الحالي"}),
+      ()=>res(GIZA),{timeout:8000,maximumAge:18e5});
+  });
+}
+
+/* ---------- طقس ---------- */
+const wc={0:"صافي",1:"غائم جزئياً",2:"غائم جزئياً",3:"غائم",45:"ضباب",48:"ضباب",51:"رذاذ",53:"رذاذ",55:"رذاذ كثيف",61:"أمطار خفيفة",63:"أمطار",65:"أمطار غزيرة",80:"زخات",81:"زخات",82:"زخات غزيرة",95:"عواصف رعدية",96:"عواصف رعدية",99:"عواصف رعدية"};
+async function loadWeather(){
+  try{
+    const p=await pos();
+    const u="https://api.open-meteo.com/v1/forecast?latitude="+p.lat+"&longitude="+p.lon+"&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1";
+    const d=await (await fetch(u)).json(),c=d.current,dl=d.daily;
+    $("weather").innerHTML='<div class="card"><div class="m">'+esc(p.name)+'</div><div class="big">'+Math.round(c.temperature_2m)+'°</div><div class="t" style="text-align:center">'+(wc[c.weather_code]||"حالة الطقس")+'</div></div>'+
+    '<div class="card row"><div><b>'+Math.round(dl.temperature_2m_max[0])+'° / '+Math.round(dl.temperature_2m_min[0])+'°</b><small>العظمى / الصغرى</small></div><div><b>'+Math.round(c.relative_humidity_2m)+'%</b><small>الرطوبة</small></div><div><b>'+Math.round(c.wind_speed_10m)+' km/h</b><small>الرياح</small></div></div>';
+  }catch(e){fail("weather","تعذر تحميل الطقس.")}
+}
+
+/* ---------- صلاة ---------- */
+async function loadPrayer(){
+  try{
+    const p=await pos(),n=new Date(),pd=x=>String(x).padStart(2,"0");
+    const u="https://api.aladhan.com/v1/timings/"+pd(n.getDate())+"-"+pd(n.getMonth()+1)+"-"+n.getFullYear()+"?latitude="+p.lat+"&longitude="+p.lon+"&method=5";
+    const t=(await (await fetch(u)).json()).data.timings;
+    const L=[["Fajr","الفجر"],["Sunrise","الشروق"],["Dhuhr","الظهر"],["Asr","العصر"],["Maghrib","المغرب"],["Isha","العشاء"]];
+    const now=n.getHours()*60+n.getMinutes(),mins=k=>{const[a,b]=t[k].split(" ")[0].split(":");return+a*60+ +b};
+    const nx=(L.find(([k])=>mins(k)>now)||L[0])[0];
+    const f=k=>{let[h,m]=t[k].split(" ")[0].split(":");h=+h;const s=h>=12?"م":"ص";return(h%12||12)+":"+m+" "+s};
+    $("prayer").innerHTML='<div class="m" style="margin-bottom:8px">'+esc(p.name)+'</div>'+L.map(([k,a])=>'<div class="card p'+(k===nx?" nx":"")+'"><span>'+a+'</span><span>'+f(k)+'</span></div>').join("");
+  }catch(e){fail("prayer","تعذر تحميل المواقيت.")}
+}
+
+/* ---------- راديو ---------- */
+const ST=[
+["Mix FM","اغاني","https://streaming.peamux.com/listen/mixfmegypt/live"],
+["Radio Hits","اغاني","https://radiohits882.radioca.st/;"],
+["Radio 9090","منوعات","https://9090streaming.mobtada.com/9090FMEGYPT"],
+["NRJ Egypt","اغاني","https://nrjstreaming.ahmed-melege.com/nrjegypt"],
+["Mega FM","منوعات","https://megafm927.radioca.st/stream"],
+["ONsport FM","رياضة","https://carina.streamerr.co:2020/stream/OnSportFM"],
+["راديو شعبي","اغاني","https://radio95.radioca.st/;"],
+["إذاعة القرآن الكريم","قرآن","https://stream.radiojar.com/8s5u5tpdtwzuv"],
+["نجوم FM","اغاني","https://audio.nrpstream.com/listen/nogoumfm/radio.mp3"],
+["Nile FM","اغاني","https://audio.nrpstream.com/listen/nile_fm/radio.mp3"],
+["نغم FM","اغاني","https://ahmsamir.radioca.st/stream"],
+["90s FM","اغاني","https://eu1.fastcast4u.com/proxy/prontofm?mp=/1"],
+["اخبار سكاي نيوز عربية","اخبار","https://radio.skynewsarabia.com/stream/radio/skynewsarabia"],
+/* المحطات دي روابطها بتتجدد من GitHub، وبتظهر بس لو الرابط اتجاب */
+["راديو مصر","منوعات",""],["الشرق الأوسط","منوعات",""],["البرنامج الثقافي ودراما FM","دراما",""],
+["إذاعة القاهرة الكبرى","منوعات",""],["الأغاني","اغاني",""],["إذاعة البرنامج العام","منوعات",""],
+["الشباب والرياضة","رياضة",""],["راديو الدراما الإذاعية","دراما",""],["Amr Diab fm","اغاني",""],
+["راديو ام كلثوم كوكب الشرق","اغاني",""],["راديو عبد الحليم حافظ","اغاني",""]
+];
+const GH="https://raw.githubusercontent.com/airline-tools/maspero-stream-finder/main/maspero-streams.json";
+async function syncStreams(){
+  try{
+    const d=await (await fetch(GH+"?t="+Date.now(),{cache:"no-store"})).json();
+    if(!Array.isArray(d))return;
+    d.forEach(f=>{const s=ST.find(x=>x[0]===f.name);if(s&&f.url)s[2]=f.url});
+  }catch(e){}
+}
+async function openRadio(){await syncStreams();renderRadio()}
+const audio=new Audio();let cur=-1,cat="الكل";
+let retried=-1;
+audio.onplaying=()=>{retried=-1;bar("▶ "+ST[cur][0])};
+audio.onerror=async()=>{
+  if(cur<0)return;
+  const old=ST[cur][2];
+  if(retried!==cur){retried=cur;await syncStreams();
+    if(ST[cur][2]!==old){audio.src=ST[cur][2];audio.play().catch(()=>{});return}}
+  bar("تعذر تشغيل "+ST[cur][0]);
+};
+function bar(t){$("bar").style.display="block";$("bar").textContent=t}
+function renderRadio(){
+  const cats=["الكل",...new Set(ST.filter(s=>s[2]).map(s=>s[1]))];
+  $("radio").innerHTML='<div class="f">'+cats.map(c=>'<button class="'+(c===cat?"on":"")+'" data-c="'+c+'">'+c+'</button>').join("")+'</div>'+
+  ST.map((s,i)=>s[2]&&(cat==="الكل"||s[1]===cat)?'<button class="card s'+(i===cur&&!audio.paused?" on":"")+'" data-i="'+i+'">'+esc(s[0])+'<i>'+(i===cur&&!audio.paused?"⏸":"▶")+'</i></button>':"").join("");
+}
+$("radio").onclick=e=>{
+  const c=e.target.closest("[data-c]"),s=e.target.closest("[data-i]");
+  if(c){cat=c.dataset.c;renderRadio()}
+  if(s){
+    const i=+s.dataset.i;
+    if(i===cur&&!audio.paused)audio.pause();
+    else{if(i!==cur){cur=i;audio.src=ST[i][2]}bar("جارٍ الاتصال...");audio.play().catch(()=>bar("تعذر التشغيل"))}
+    setTimeout(renderRadio,150);
+  }
+};
+audio.onpause=()=>{bar("⏸ "+(ST[cur]?.[0]||""));renderRadio()};
+
+loaded.news=1;loadNews();syncStreams();
+if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script>
+</body>
+</html>

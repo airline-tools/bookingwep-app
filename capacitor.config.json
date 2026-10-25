@@ -1,0 +1,7 @@
+{
+  "appId": "com.bookingwep.app",
+  "appName": "Bookingwep",
+  "webDir": "www",
+  "backgroundColor": "#0f1e36",
+  "android": { "allowMixedContent": true }
+}
